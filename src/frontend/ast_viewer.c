@@ -14,6 +14,9 @@ void term_view(node_t* node) {
     case NODE_INT:
       printf("%ld", node->value);
       break;
+    case NODE_FLOAT:
+      printf("%f", (double)(node->value));
+      break;
     case NODE_NOT:
       printf("~");
       term_view(node->lhs);

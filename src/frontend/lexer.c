@@ -11,6 +11,7 @@ const char* type_to_str[] = {
   "TOK_ID",
   "TOK_STRING",
   "TOK_NUM",
+  "TOK_FLOAT",
   "TOK_LPAR",
   "TOK_RPAR",
   "TOK_LBRAC",

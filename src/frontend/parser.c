@@ -101,6 +101,13 @@ int64_t parse_num(token_t* tok) {
   return (tok->hex ? strtol(num, NULL, 16) : atoi(num));
 }
 
+double parse_float(token_t* tok) {
+  char num[tok->text_len + 1];
+  strncpy(num, tok->text, tok->text_len);
+  num[tok->text_len] = 0;
+  return atof(num);
+}
+
 int64_t parse_neg(token_t* tok) {
   char num[tok->text_len + 2];
   num[0] = '-';

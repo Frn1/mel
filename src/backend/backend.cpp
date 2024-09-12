@@ -106,6 +106,10 @@ Value* backend_load_int(Type* ty, int64_t val) {
   return ConstantInt::get(ty, val);
 }
 
+Value* backend_load_float(Type* ty, double val) {
+  return ConstantFP::get(ty, val);
+}
+
 std::string unescape_string(const std::string& input) {
   std::string output;
   output.reserve(input.size()); // Reserve enough space to avoid multiple allocations
@@ -148,7 +152,7 @@ Type* backend_get_var_type(Value* var) {
   if (isa<AllocaInst>(var)) {
     return ((AllocaInst*)var)->getAllocatedType();
   } else if (isa<GlobalVariable>(var)) {
-    return ((Type*)((GlobalVariable*)var)->getType())->getPointerElementType();
+    return ((Type*)((GlobalVariable*)var)->getType())->getArrayElementType();
   } else {
     return var->getType();
   }
@@ -191,7 +195,7 @@ std::tuple<Type*,Value*> backend_arr_gep(Type* ty, node_t* node, Value* var) {
   if (ty->isPointerTy()) {
     is_pointer = true;
     pointer = builder.CreateLoad(arr_type, alloca);
-    arr_type = arr_type->getPointerElementType();
+    arr_type = arr_type->getArrayElementType();
   }
   Value* element_ptr;
   for (list_item_t* expr = expr_list->head->next; expr != expr_list->head; expr = expr->next) {
@@ -206,7 +210,7 @@ std::tuple<Type*,Value*> backend_arr_gep(Type* ty, node_t* node, Value* var) {
       arr_type = arr_type->getArrayElementType();
     } else {
       if (expr->next != expr_list->head) {
-        arr_type = arr_type->getPointerElementType();
+        arr_type = arr_type->getArrayElementType();
         pointer = builder.CreateLoad(arr_type, alloca); // TODO: Test this later.
       }
     }
@@ -312,9 +316,13 @@ std::tuple<Type*,Value*> backend_gen_iexpr(Type* ty, node_t* node) {
       if (ty == nullptr) ty = Type::getInt32Ty(context);
       val = backend_load_int(ty, node->value);
       break;
+    case NODE_FLOAT:
+      if (ty == nullptr) ty = Type::getDoubleTy(context);
+      val = backend_load_float(ty, *(double*)(&node->value)); // Undo the bit hack we did earlier
+      break;
     case NODE_STR: {
       char* str = parse_str(node->tok);
-      ty = PointerType::getInt8PtrTy(context);
+      ty = PointerType::getInt8Ty(context);
       val = backend_load_str(ty, str, node->tok->text_len + 1);
       free(str);
       break;
@@ -565,7 +573,7 @@ std::tuple<Type*,Value*> backend_gen_struct_acc(node_t* node) {
   Type* ty = backend_get_var_type(val);
   if (ty->isPointerTy()) {
     val = builder.CreateLoad(ty, val);
-    ty = ty->getPointerElementType();
+    ty = ty->getArrayElementType();
   }
   while (temp->lhs) {
     temp = temp->lhs;
@@ -581,7 +589,7 @@ std::tuple<Type*,Value*> backend_gen_struct_acc(node_t* node) {
     } else {
       if (ty->isPointerTy() && temp->lhs) {
         val = builder.CreateLoad(ty, val);
-        ty = ty->getPointerElementType();
+        ty = ty->getArrayElementType();
       }
     }
   }
@@ -597,19 +605,19 @@ std::tuple<Type*,Value*> backend_gen_deref(node_t* node) {
     auto struct_acc = backend_gen_struct_acc(node->lhs);
     val = std::get<1>(struct_acc);
     ty = std::get<0>(struct_acc);
-    ty = ty->getPointerElementType();
+    ty = ty->getArrayElementType();
   } else if (node->lhs->type == NODE_ID) {
     expr = backend_gen_iexpr(nullptr, node->lhs);
     val = std::get<1>(expr);
     ty = std::get<0>(expr);
-    ty = ty->getPointerElementType();
+    ty = ty->getArrayElementType();
   } else if (node->lhs->type == NODE_ARR_IDX) {
     char* name = parse_str(node->lhs->tok);
     Value* var = var_map[name];
     auto arr_idx = backend_arr_gep(backend_get_var_type(var), node->lhs, var);
     val = std::get<1>(arr_idx);
     ty = std::get<0>(arr_idx);
-    ty = ty->getPointerElementType();
+    ty = ty->getArrayElementType();
   } else {
     node_t* var_node = node->lhs->lhs;
     char* name = parse_str(var_node->tok);
@@ -617,7 +625,7 @@ std::tuple<Type*,Value*> backend_gen_deref(node_t* node) {
     ty = backend_get_llvm_type(var_types[name]);
 
     var = builder.CreateLoad(ty, var);
-    ty = ty->getPointerElementType();
+    ty = ty->getArrayElementType();
 
     expr = backend_gen_iexpr(nullptr, node->lhs->rhs);
     val = std::get<1>(expr);
@@ -657,7 +665,7 @@ std::tuple<Type*,Value*> backend_gen_ref(node_t* node) {
     ty = backend_get_llvm_type(var_types[name]);
 
     var = builder.CreateLoad(ty, var);
-    ty = ty->getPointerElementType();
+    ty = ty->getArrayElementType();
 
     expr = backend_gen_iexpr(nullptr, node->lhs->rhs);
     val = std::get<1>(expr);

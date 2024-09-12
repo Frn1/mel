@@ -321,6 +321,14 @@ node_t* parse_factor(parser_t* parser, type_t* type) {
       node->value = parse_num(tok);
       node->tok = tok;
       break;
+    case TOK_FLOAT:
+      node = NEW_DATA(node_t);
+      memset(node, 0, sizeof(node_t));
+      node->type = NODE_FLOAT;
+      double float_num = parse_float(tok);
+      node->value = *(int64_t*)(&float_num); // Hack to convert float to int64_t by just reinterpreting the bits
+      node->tok = tok;
+      break;
     case TOK_STRING:
       node = NEW_DATA(node_t);
       memset(node, 0, sizeof(node_t));
