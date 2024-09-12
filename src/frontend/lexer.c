@@ -171,15 +171,28 @@ void lexer_advance(lexer_t* l) {
         }
       }
       char* start = l->source + l->position.raw;
+      bool is_float = false;
       do {
-        if (hex && tolower(l->source[l->position.raw]) > 'f') {
+        if (!hex && !is_float && l->c == '.') {
+          is_float = true;
+        } 
+        if (hex && !is_float && tolower(l->source[l->position.raw]) > 'f') {
+          lexer_error(l, "Invalid character!\n");
+        }
+        if (!hex && is_float && tolower(l->source[l->position.raw]) > '9') {
           lexer_error(l, "Invalid character!\n");
         }
         l->position.col++;
         l->c = l->source[++l->position.raw];
-      } while (isdigit(l->c) || (hex && isalpha(l->c)));
-      token_t* tok = lexer_create_token(l, TOK_NUM, start);
-      tok->hex = hex;
+      } while (isdigit(l->c) || (hex && isalpha(l->c)) ||
+               (!hex && !is_float && l->c == '.'));
+      token_t* tok;
+      if (is_float) {
+        tok = lexer_create_token(l, TOK_FLOAT, start);
+      } else {
+        tok = lexer_create_token(l, TOK_NUM, start);
+        tok->hex = hex;
+      }
       list_add(l->tok_list, tok);
       break;
     }
